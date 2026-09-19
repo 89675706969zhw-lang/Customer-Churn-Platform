@@ -20,7 +20,38 @@
 
 ## 快速启动
 
-### 一体化启动（推荐）
+项目支持两种启动模式：Docker Compose 用于可复现的部署与演示；本地启动适合修改前后端代码时快速调试。
+
+### Docker Compose（部署或演示推荐）
+
+确保 Docker Desktop 已启动后，在项目根目录执行：
+
+```powershell
+docker compose up --build -d
+```
+
+首次启动会构建镜像、安装依赖并训练或加载模型，完成后访问：
+
+```text
+http://127.0.0.1:8000
+```
+
+检查容器和健康状态：
+
+```powershell
+docker compose ps
+docker compose logs -f retention
+```
+
+停止容器（保留模型缓存）：
+
+```powershell
+docker compose down
+```
+
+Compose 将 `data/raw` 以只读方式挂载到容器，并把可再生成的模型缓存保存在 Docker volume 中。服务只绑定 `127.0.0.1:8000`，默认不向局域网公开。
+
+### 本地一体化启动（开发推荐）
 
 在项目根目录执行：
 
@@ -54,14 +85,6 @@ npm run dev
 ```
 
 前端开发地址为 `http://127.0.0.1:5173`，Vite 会将 `/api` 请求代理至后端。
-
-### Docker Compose
-
-```powershell
-docker compose up --build
-```
-
-服务启动后访问 `http://127.0.0.1:8000`。
 
 ## 测试与构建
 
