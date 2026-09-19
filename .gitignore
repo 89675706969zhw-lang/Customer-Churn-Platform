@@ -1,0 +1,18 @@
+.runtime/
+__pycache__/
+.pytest_cache/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+.venv/
+*.log
+.playwright-cli/
+output/playwright/
+frontend/*.tsbuildinfo
+.workbuddy/
+
+# Local reports and generated review artifacts are intentionally not versioned.
+开题方案/
+output/
+data/*.xlsx

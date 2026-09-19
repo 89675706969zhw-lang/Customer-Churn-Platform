@@ -1,0 +1,10 @@
+.runtime
+.git
+**/node_modules
+**/dist
+**/__pycache__
+data
+开题方案
+.workbuddy
+output
+.pytest_cache
