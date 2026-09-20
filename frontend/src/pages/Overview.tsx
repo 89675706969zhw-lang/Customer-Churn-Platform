@@ -313,8 +313,10 @@ export default function Overview() {
             </table>
           </div>
           <p className="footnote">
-            B0–B3 使用同一留出集比较，不预设模型排名。合成标签以加权 logit
-            机制生成；分数仅描述当前合成情景，不代表真实客户预测效果。
+            <b>选型说明：</b>平台当前沿用 B2 LightGBM，承接现有风险评分、SHAP
+            解释和消融分析流程，并非本次指标最优模型。当前合成数据留出集上，B1
+            与 B3 的主要排序指标略高；合成标签采用加权 logit 机制，结果可能更有利于线性模型。
+            是否替换主模型，需要通过训练集交叉验证和多种合成情景比较决定。
           </p>
         </Panel>
         <Panel
@@ -355,7 +357,7 @@ export default function Overview() {
       <section className="model-strip">
         <div>
           <ShieldCheck />
-          <strong>模型验证</strong>
+          <strong>当前演示模型验证 · B2 LightGBM</strong>
           <span>独立留出 {number(d.metrics.holdout_size)} 位客户</span>
         </div>
         {[

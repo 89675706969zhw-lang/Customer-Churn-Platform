@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App";
 import { emptyFilters, type Meta, type SimParams } from "../src/api";
-import { customer, detail, meta, selection, simulation } from "./fixtures";
+import { customer, dashboard, detail, meta, selection, simulation } from "./fixtures";
 
 // jsdom has no canvas layout; real ECharts rendering is exercised by E2E tests.
 vi.mock("../src/Chart", () => ({
@@ -33,6 +33,7 @@ beforeEach(() => {
       if (metadataFailures-- > 0) return Response.json({ detail: "服务暂不可用" }, { status: 503 });
       return Response.json(metadata);
     }
+    if (url.pathname === "/api/dashboard") return Response.json(dashboard);
     if (url.pathname === "/api/customers/export") {
       return new Response("", { status: exportFails ? 500 : 200 });
     }
@@ -71,6 +72,17 @@ function mount(path = "/customers") {
 function lastCustomerRequest() {
   return requests.filter((url) => url.pathname === "/api/customers").at(-1)!.searchParams;
 }
+
+it("identifies B2 as the current model without claiming it is metric-best", async () => {
+  mount("/");
+  expect(await screen.findByText("当前演示模型验证 · B2 LightGBM")).toBeVisible();
+  expect(screen.getByText(/平台当前沿用 B2 LightGBM/)).toHaveTextContent(
+    "并非本次指标最优模型",
+  );
+  expect(screen.getByText(/平台当前沿用 B2 LightGBM/)).toHaveTextContent(
+    "B1 与 B3 的主要排序指标略高",
+  );
+});
 
 it("shows out-of-sample validation, negative ranking metrics and adjusted channel effects", async () => {
   mount("/simulation");

@@ -1,4 +1,4 @@
-import { emptyFilters, type Customer, type Detail, type Meta, type SimParams, type SimResult } from "../src/api";
+import { emptyFilters, type Customer, type Dashboard, type Detail, type Meta, type SimParams, type SimResult } from "../src/api";
 
 // Small, hand-authored contract fixtures; these are not copies of runtime output.
 export const meta: Meta = {
@@ -30,6 +30,31 @@ export const detail: Detail = {
   base_value: 0.88629436112, raw_log_odds: 1.38629436112,
   history: [{ month: 1, usage_gb: 20, bill_amount: 500, support_tickets: 1 }],
   suggestion: "核实工单处理进度。",
+};
+
+export const dashboard: Dashboard = {
+  total: 30000, monthly_rows: 720000, invalid_event_months: 0,
+  average_risk: 0.08, high: 900, expected_revenue_at_risk: 1000000,
+  version: "fixture", bands: [{ key: "high", name: "高风险", value: 900 }],
+  lines: [{ key: "mobile", name: "移动业务", total: 30000, predicted: 0.08, observed: 0.07, high: 900 }],
+  trend: Array.from({ length: 6 }, (_, i) => ({ month: i + 19, mobile: 0.01 })),
+  importance: [{ name: "合约类型", value: 0.2 }],
+  metrics: { auc: 0.8475, pr_auc: 0.3966, lift: 4.38, recall: 0.438, brier: 0.06, ece: 0.0071,
+    holdout_size: 7500, train_size: 18000, calibration_size: 4500, model: "LightGBM + Platt",
+    observation_months: 18, label_months: 6, clv_months: 18, base_retention_cost: 800 },
+  baselines: [
+    { key: "B0", name: "B0 规则基线", model: "规则", note: "规则", auc: 0.76, pr_auc: 0.26, lift: 3.2, recall: 0.32 },
+    { key: "B1", name: "B1 逻辑回归", model: "逻辑回归", note: "线性", auc: 0.856, pr_auc: 0.422, lift: 4.63, recall: 0.463, brier: 0.06, ece: 0.0069 },
+    { key: "B2", name: "B2 LightGBM", model: "LightGBM", note: "当前演示主模型", auc: 0.8475, pr_auc: 0.3966, lift: 4.38, recall: 0.438, brier: 0.06, ece: 0.0071 },
+    { key: "B3", name: "B3 离散时间生存模型", model: "生存", note: "hazard", auc: 0.856, pr_auc: 0.423, lift: 4.63, recall: 0.463, brier: 0.06, ece: 0.0073 },
+  ],
+  ablation: [{ group: "全特征（基准）", removed: [], auc: 0.8475, pr_auc: 0.3966, lift: 4.38, recall: 0.438, delta_pr_auc: 0, delta_lift: 0 }],
+  uplift_stats: { ate: 0.05, p90: 0.1, sensitive: 1000, recoverable: 500 },
+  intervention_validation: {
+    method: "5-fold cross-fitting + independent holdout", seed: 52, folds: 5,
+    development_size: 22500, holdout_size: 7500, treatment_probability: 0.3,
+    qini_ipw: 0.01, ate_ipw: 0.05, top_decile_effect_ipw: 0.1, arms: [], note: "合成实验",
+  },
 };
 
 export const selection = {

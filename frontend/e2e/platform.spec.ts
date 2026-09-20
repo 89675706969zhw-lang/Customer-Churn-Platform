@@ -16,6 +16,8 @@ test("overview → filtered list → CSV → diagnosis → simulation → reload
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /洞察流失风险/ })).toBeVisible();
+  await expect(page.getByText("当前演示模型验证 · B2 LightGBM")).toBeVisible();
+  await expect(page.getByText(/平台当前沿用 B2 LightGBM/)).toContainText("并非本次指标最优模型");
   await expect(page.getByRole("img", { name: "标签窗口逐月流失事件率" })).toBeVisible();
   await expect(page.locator("canvas").first()).toBeVisible();
   await page.getByRole("button", { name: "查看风险名单" }).click();
