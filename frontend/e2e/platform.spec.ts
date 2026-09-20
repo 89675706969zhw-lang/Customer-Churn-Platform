@@ -69,6 +69,13 @@ test("overview → filtered list → CSV → diagnosis → simulation → reload
   expect(response.request().postDataJSON().success).toBe(1);
   const result = await response.json() as SimResult;
   expect(result.candidate_count).toBe(1);
+  expect(result.intervention_validation.holdout_size).toBe(7500);
+  await expect(page.getByRole("heading", { name: "干预模型 · 样本外验证" })).toBeVisible();
+  for (const row of result.customers) {
+    expect(row.p_after).toBeGreaterThanOrEqual(0);
+    expect(row.p_after).toBeLessThanOrEqual(1);
+    expect(row.rescue).toBeCloseTo(row.p0 - row.p_after, 10);
+  }
   await expect(page.getByText("手选客户 · 1 人", { exact: true })).toBeVisible();
   await expect(page.locator(".sim-kpis")).toContainText(money(result.net));
 
@@ -116,4 +123,23 @@ test("pagination and empty search recover through the UI", async ({ page }) => {
   await page.getByRole("button", { name: "清除筛选" }).click();
   await expect(first).toHaveText(firstId);
   await expect(page.getByRole("button", { name: "上一页" })).toBeDisabled();
+});
+
+test("validation remains readable at narrow and landscape widths with reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/#/simulation");
+  await expect(page.getByRole("heading", { name: "干预模型 · 样本外验证" })).toBeVisible();
+  for (const viewport of [{ width: 375, height: 812 }, { width: 812, height: 375 }, { width: 1440, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    // ECharts updates its canvas via ResizeObserver after the viewport changes.
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await expect(page.getByRole("slider", { name: /渠道效果系数/ })).toBeEnabled();
+    const heading = page.getByRole("heading", { name: "干预模型 · 样本外验证" });
+    await heading.scrollIntoViewIfNeeded();
+    await expect(heading).toBeVisible();
+    if (process.env.CHURN_VISUAL_CHECKS) {
+      await page.screenshot({ path: `../output/playwright/validation-${viewport.width}.png`, fullPage: true });
+      await page.locator(".panel").filter({ has: heading }).screenshot({ path: `../output/playwright/validation-panel-${viewport.width}.png` });
+    }
+  }
 });

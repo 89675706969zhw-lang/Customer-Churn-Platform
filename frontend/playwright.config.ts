@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+// Explicit opt-in validates a deployed Docker instance without spawning a second backend.
+const externalURL = process.env.PLAYWRIGHT_BASE_URL;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -14,7 +16,7 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: {
-    baseURL: "http://127.0.0.1:18000",
+    baseURL: externalURL || "http://127.0.0.1:18000",
     channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     trace: "off",
     screenshot: "off",
@@ -24,7 +26,7 @@ export default defineConfig({
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chromium", use: { ...devices["Pixel 7"] } },
   ],
-  webServer: {
+  webServer: externalURL ? undefined : {
     command: "python -m uvicorn backend.app:app --host 127.0.0.1 --port 18000",
     cwd: root,
     url: "http://127.0.0.1:18000/api/health",

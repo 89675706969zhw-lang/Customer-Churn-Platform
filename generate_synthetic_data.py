@@ -10,7 +10,7 @@ Synthetic data generator anchored on Rostelecom's publicly disclosed 2025 figure
 设计原则 / Design principles:
     1. 锚定真实 (anchored): 用户结构、ARPU、流失率取自 Ростелеком 2025 年公开披露。
     2. 注入信号 (signal injection): 先构造 logit 倾向得分再抽样，保证模型能学到结构。
-    3. 保留噪声 (irreducible noise): 个体异质性项使 AUC 落在 0.78-0.85 的真实区间。
+    3. 保留噪声 (irreducible noise): 用假设的个体异质性描述当前合成情景，不指定目标 AUC。
     4. 可复现 (reproducible): 固定随机种子。
 
 ⚠ 生成结果为合成数据，不代表 Ростелеком 真实客户行为。
@@ -47,8 +47,8 @@ CONTRACT_PROBS = [0.55, 0.30, 0.15]          # [假设]
 PAYMENT_METHODS = ["auto", "card", "invoice"]
 PAYMENT_PROBS = [0.45, 0.35, 0.20]           # [假设]
 
-# 信号注入系数 (logit scale) —— 已按实测 AUC 校准至 0.80 附近
-# 调整方法: AUC > 0.92 → 调大 NOISE_SD; AUC < 0.75 → 整体放大 BETA
+# 信号注入系数 (logit scale)：人工假设，并非从真实客户数据估计。
+# 历史版本曾以目标 AUC 指导参数设置；保留现有参数，不再按评估分数调噪声。
 BETA = {
     "contract_monthly":   1.35,
     "usage_decline":      0.85,
@@ -62,7 +62,7 @@ BETA = {
     "auto_payment":      -0.50,
     "tenure_years":      -0.25,
 }
-NOISE_SD = 0.50        # 个体不可观测异质性；AUC > 0.92 调大，< 0.75 调小
+NOISE_SD = 0.50        # 假设的个体不可观测异质性；不是对真实噪声的实证估计
 
 # ---- S5 干预历史参数（合成随机化实验 / synthetic randomized experiment）----
 # 历史干预按 TREAT_SHARE 随机分配（无混淆），处理效应在 logit 尺度异质：
@@ -359,8 +359,8 @@ def validate(df, monthly):
     print(f"总流失率        : {df['churn_flag'].mean():.3f}")
     print(f"缺失率(outage)  : {monthly['outage_hours'].isna().mean():.3f}")
     print("=" * 62)
-    print("\n下一步: 用 LightGBM 快速试跑，确认 AUC 落在 0.78-0.85。")
-    print("若 AUC > 0.92 → 调大 NOISE_SD; 若 < 0.70 → 调小 NOISE_SD 或加大 BETA 系数。\n")
+    print("\n下一步: 冻结生成假设，检查标签泄漏并在独立留出集评价模型。")
+    print("分数仅适用于当前合成情景；不要按目标 AUC 调整噪声或系数。\n")
     return ok
 
 

@@ -13,6 +13,7 @@ from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_s
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
+from .intervention import adjusted_effect, fit_intervention
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = Path(os.environ.get("CHURN_DATA_DIR", ROOT / "data/raw"))
@@ -105,6 +106,7 @@ class Engine:
     def __init__(self):
         CACHE.mkdir(exist_ok=True, parents=True)
         digest = hashlib.sha256(Path(__file__).read_bytes())
+        digest.update(Path(__file__).with_name("intervention.py").read_bytes())
         for name in ["model_table.csv", "customer_base.csv", "monthly_usage.csv", "churn_events.csv",
                      "intervention_history.csv"]:
             with (RAW / name).open("rb") as source:
@@ -115,6 +117,11 @@ class Engine:
         if not self.frame.customer_id.is_unique:
             raise ValueError("model_table contains duplicate customers")
         self.history = pd.read_csv(RAW / "intervention_history.csv")
+        if (not self.history.customer_id.is_unique
+                or set(self.history.customer_id) != set(self.frame.customer_id)):
+            raise ValueError("intervention_history must contain exactly one row per model customer")
+        if not self.history[["treated", "churned"]].isin([0, 1]).all().all():
+            raise ValueError("intervention_history treatment and outcome must be binary")
         cache = CACHE / f"model-{self.version}.joblib"
         if cache.exists():
             state = joblib.load(cache)
@@ -125,6 +132,9 @@ class Engine:
         self.categories, self.metrics = state["categories"], state["metrics"]
         self.baselines, self.ablation = state["baselines"], state["ablation"]
         self.uplift = state["uplift"]
+        self.intervention = state["intervention"]
+        self.frame["p0"] = self.intervention["p0"]
+        self.frame["p1"] = self.intervention["p1"]
         self.frame["evaluation_split"] = state["splits"]
         x = self.encode(self.frame)
         margin = self.model.booster_.predict(x, raw_score=True, num_threads=4)
@@ -220,7 +230,7 @@ class Engine:
             dict(key="B1", name="B1 逻辑回归", model="LogisticRegression（one-hot + 中位数填充 + 缺失标志）",
                  note="可解释线性基线", **ranking_metrics(y, p1, p1)),
             dict(key="B2", name="B2 LightGBM", model="LightGBM + Platt 校准",
-                 note="性能主力，生产模型", **b2),
+                 note="当前演示主模型", **b2),
             dict(key="B3", name="B3 离散时间生存模型", model="person-month hazard LogisticRegression（M19–M24）",
                  note="回答「何时流失」的 hazard 模型", **ranking_metrics(y, p3, p3)),
         ]
@@ -243,20 +253,15 @@ class Engine:
 
         # ---- S5 T-learner: individual treatment effect from the randomized history ----
         h = self.history.set_index("customer_id").loc[df.customer_id]
-        treated = h.treated.to_numpy() == 1
-        tl = dict(n_estimators=120, learning_rate=.06, num_leaves=15, min_child_samples=60,
-                  reg_lambda=3, random_state=42, n_jobs=4, verbosity=-1,
-                  deterministic=True, force_col_wise=True)
-        m0 = lgb.LGBMClassifier(**tl).fit(x[~treated], h.churned.to_numpy()[~treated])
-        m1 = lgb.LGBMClassifier(**tl).fit(x[treated], h.churned.to_numpy()[treated])
-        # ITE estimate: how much the standard retention call lowers churn probability.
-        uplift = m0.predict_proba(x)[:, 1] - m1.predict_proba(x)[:, 1]
+        intervention = fit_intervention(df[FEATURES], h.treated, h.churned, CATEGORIES)
+        uplift = intervention["p0"] - intervention["p1"]
 
         splits = np.full(len(df), "train", dtype=object)
         splits[calibration] = "calibration"
         splits[holdout] = "holdout"
         return dict(model=model, calibrator=calibrator, categories=self.categories, metrics=metrics,
-                    splits=splits, baselines=baselines, ablation=ablation, uplift=uplift)
+                    splits=splits, baselines=baselines, ablation=ablation, uplift=uplift,
+                    intervention=intervention)
 
     def filtered(self, line="", band="", region="", search=""):
         df = self.frame
@@ -295,6 +300,7 @@ class Engine:
                     expected_revenue_at_risk=float((df.score * df.arpu * LABEL_MONTHS).sum()),
                     bands=[dict(key=b, name=n, value=int((df.band == b).sum())) for b, n in [("high", "高风险 ≥70%"), ("mid", "中风险 40–70%"), ("low", "低风险 <40%")]],
                     lines=lines, trend=trend, metrics=self.metrics, baselines=self.baselines, ablation=self.ablation,
+                    intervention_validation=self.intervention["validation"],
                     uplift_stats=dict(ate=float(df.uplift.mean()), p90=float(df.uplift.quantile(.9)),
                                       sensitive=int((df.uplift >= SENSITIVITY_THRESHOLD).sum()),
                                       recoverable=int(((df.score >= .4) & (df.uplift >= SENSITIVITY_THRESHOLD)).sum())),
@@ -314,7 +320,7 @@ class Engine:
         contributions.append(dict(feature="others", name="其他特征合计", value=float(vals.sum() - vals[order].sum())))
         return dict(**self.public(self.frame.iloc[[pos]])[0], contract_type=row.contract_type,
                     payment_method=row.payment_method, days_to_contract_end=int(row.days_to_contract_end),
-                    tickets=int(row.tickets_6m), uplift=float(row.uplift),
+                    tickets=int(row.tickets_6m), uplift=float(row.uplift), p0=float(row.p0), p1=float(row.p1),
                     contributions=contributions, base_value=float(self.base[pos]),
                     raw_log_odds=float(self.base[pos] + vals.sum()),
                     history=self.query(
@@ -330,8 +336,9 @@ class Engine:
                 raise KeyError(sorted(missing)[0])
             df = df[df.customer_id.isin(params.customer_ids)]
         df = df.copy()
-        # S5 uplift-based economics: rescue = individual ITE x channel effectiveness.
-        rescue = df.uplift.to_numpy() * params.success
+        # Use a coherent pair of intervention probabilities, not the separate risk score.
+        df["p_after"], df["rescue"] = adjusted_effect(df.p0, df.p1, params.success)
+        rescue = df.rescue.to_numpy()
         df["expected_gross"] = rescue * df.arpu.to_numpy() * params.clv_months
         df["expected_net"] = df.expected_gross - params.cost
         df = df.sort_values(["expected_net", "customer_id"], ascending=[False, True])
@@ -343,15 +350,16 @@ class Engine:
         best = int(np.argmax(net))
         steps = np.unique(np.r_[np.linspace(0, n, min(n + 1, 101)).astype(int), best])
         # S5 four customer segments: churn probability x individual intervention sensitivity.
-        sensitive = rescue >= SENSITIVITY_THRESHOLD
+        sensitive = df.rescue.to_numpy() >= SENSITIVITY_THRESHOLD
         risky = df.score.to_numpy() >= .4
         groups = np.select([risky & sensitive, ~risky & sensitive, risky & ~sensitive],
-                           ["可挽回", "需说服", "必然流失"], "无需打扰")
+                           ["可挽回", "需说服", "高风险、低预计干预响应"], "无需打扰")
         recommended = df.head(best).head(30)
         return dict(candidate_count=len(df), best_k=best, net=float(net[best]), gross=float(gross[best]),
                     cost=float(best * params.cost), roi=float(net[best] / (best * params.cost)) if best else None,
                     random_net=float(best * df.expected_net.mean()) if len(df) else 0.,
                     mean_uplift=float(df.uplift.mean()) if len(df) else 0., mean_rescue=float(rescue.mean()) if len(df) else 0.,
                     curve=[dict(k=int(i), gross=float(gross[i]), net=float(net[i]), cost=float(i * params.cost)) for i in steps],
-                    groups=[dict(name=name, value=int((groups == name).sum())) for name in ["可挽回", "需说服", "必然流失", "无需打扰"]],
-                    customers=records(recommended[["customer_id", "business_line", "score", "uplift", "expected_net"]]))
+                    intervention_validation=self.intervention["validation"],
+                    groups=[dict(name=name, value=int((groups == name).sum())) for name in ["可挽回", "需说服", "高风险、低预计干预响应", "无需打扰"]],
+                    customers=records(recommended[["customer_id", "business_line", "score", "uplift", "p0", "p1", "p_after", "rescue", "expected_net"]]))

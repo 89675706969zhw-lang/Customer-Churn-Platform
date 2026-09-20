@@ -72,6 +72,18 @@ function lastCustomerRequest() {
   return requests.filter((url) => url.pathname === "/api/customers").at(-1)!.searchParams;
 }
 
+it("shows out-of-sample validation, negative ranking metrics and adjusted channel effects", async () => {
+  mount("/simulation");
+  await screen.findByRole("heading", { name: "干预模型 · 样本外验证" });
+  expect(screen.getByText(/Qini（IPW）-0.0123/)).toBeVisible();
+  expect(screen.getByText(/样本外估计不代表真实业务效果/)).toBeVisible();
+  expect(screen.getByText(/将「未干预概率/)).toBeVisible();
+  const tile = screen.getByText("候选平均有效增益").closest(".kpi")! as HTMLElement;
+  expect(within(tile).getByText("10.0%")).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: /短信与推送/ }));
+  await waitFor(() => expect(screen.getByText("候选平均有效增益").closest(".kpi")).toHaveTextContent("3.5%"));
+});
+
 describe("loading and recovery", () => {
   it("shows loading, exposes a failed request, and reloads successfully", async () => {
     metadataFailures = 1;

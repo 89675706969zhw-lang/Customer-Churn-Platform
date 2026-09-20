@@ -78,6 +78,7 @@ export type AblationRow = {
   delta_lift: number;
 };
 export type Dashboard = {
+  intervention_validation: InterventionValidation;
   total: number;
   monthly_rows: number;
   invalid_event_months: number;
@@ -113,6 +114,8 @@ export type CustomerPage = {
   items: Customer[];
 };
 export type Detail = Customer & {
+  p0: number;
+  p1: number;
   contract_type: string;
   payment_method: string;
   days_to_contract_end: number;
@@ -143,7 +146,21 @@ export type SimParams = {
   filters: Filters;
   customer_ids: string[] | null;
 };
+export type InterventionValidation = {
+  method: string;
+  seed: number;
+  folds: number;
+  development_size: number;
+  holdout_size: number;
+  treatment_probability: number;
+  qini_ipw: number;
+  ate_ipw: number;
+  top_decile_effect_ipw: number;
+  arms: { arm: number; size: number; observed_rate: number; predicted_rate: number; brier: number; auc: number }[];
+  note: string;
+};
 export type SimResult = {
+  intervention_validation: InterventionValidation;
   candidate_count: number;
   best_k: number;
   net: number;
@@ -161,6 +178,10 @@ export type SimResult = {
     score: number;
     uplift: number;
     expected_net: number;
+    p0: number;
+    p1: number;
+    p_after: number;
+    rescue: number;
   }[];
 };
 
