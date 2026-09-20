@@ -12,6 +12,8 @@ output/playwright/
 frontend/*.tsbuildinfo
 frontend/coverage/
 .workbuddy/
+.netlify/
+netlify/generated/
 
 # Local reports and generated review artifacts are intentionally not versioned.
 开题方案/

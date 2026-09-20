@@ -1,0 +1,12 @@
+[build]
+  command = "python -m pip install -r backend/requirements.txt && python netlify/export_snapshot.py && npm --prefix frontend ci && npm --prefix frontend run build"
+  publish = "frontend/dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+  PYTHON_VERSION = "3.13"
+
+[functions]
+  directory = "netlify/functions"
+  included_files = ["netlify/generated/snapshot.json.gz"]
+  node_bundler = "esbuild"
