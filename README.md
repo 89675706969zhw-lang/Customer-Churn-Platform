@@ -118,6 +118,14 @@ npm run test:e2e
 
 Linux 首次安装浏览器时使用 `npx playwright install --with-deps chromium`，同时安装系统依赖。
 
+如果 Windows 已安装 Edge，可在本地跳过 Chromium 下载，用相同用例检查 Edge 的 Chromium 内核；CI 仍使用 Playwright 指定的 Chromium：
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = "msedge"
+npm run test:e2e
+$env:PLAYWRIGHT_CHANNEL = ""
+```
+
 端到端测试需要先完成 `npm run build`。它会自动启动独立的 FastAPI 服务，等待 `http://127.0.0.1:18000/api/health` 就绪后，用 Chromium 的桌面和手机视口测试真实业务流程：总览、名单筛选、CSV 导出、客户诊断、干预仿真与刷新恢复。手机视口是浏览器模拟，不代表真实手机或 Safari 兼容性验证。
 
 请保持 `18000` 端口空闲；测试不会复用或停止现有 `8000` 服务。测试使用原始数据，独立模型缓存位于 `.runtime/e2e/`，本地测试输出位于 `output/playwright/test-results/`，这些文件均已忽略。新增测试不更换模型、不重新生成原始数据。

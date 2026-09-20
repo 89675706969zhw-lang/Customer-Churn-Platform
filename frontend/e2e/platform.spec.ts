@@ -57,7 +57,9 @@ test("overview → filtered list → CSV → diagnosis → simulation → reload
   expect(customerResponse.ok()).toBe(true);
   const customer = await customerResponse.json() as Detail;
   await expect(page.locator(".score-card")).toContainText(`${(customer.score * 100).toFixed(1)}%`);
-  await expect(page.getByRole("img", { name: "单客户 SHAP 特征贡献" }).locator("canvas")).toBeVisible();
+  // ECharts supplies a data-dependent ARIA description; the panel title is stable.
+  const shapPanel = page.locator(".panel").filter({ has: page.getByRole("heading", { name: "风险归因 · SHAP", exact: true }) });
+  await expect(shapPanel.locator("canvas")).toBeVisible();
 
   const simulationResponse = watchSimulation(page);
   await page.getByRole("button", { name: "加入干预仿真" }).click();

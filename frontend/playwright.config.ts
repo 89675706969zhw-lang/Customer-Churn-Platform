@@ -15,6 +15,7 @@ export default defineConfig({
   reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: {
     baseURL: "http://127.0.0.1:18000",
+    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     trace: "off",
     screenshot: "off",
     video: "off",
