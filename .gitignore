@@ -10,6 +10,7 @@ frontend/playwright-report/
 .playwright-cli/
 output/playwright/
 frontend/*.tsbuildinfo
+frontend/coverage/
 .workbuddy/
 
 # Local reports and generated review artifacts are intentionally not versioned.

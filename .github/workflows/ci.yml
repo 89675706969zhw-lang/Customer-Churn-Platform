@@ -1,0 +1,54 @@
+name: Platform checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Components, backend, build and browser flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgomp1
+          python -m pip install -r backend/requirements.txt
+      - name: Install frontend dependencies from lockfile
+        working-directory: frontend
+        run: npm ci
+      - name: Type check application and tests
+        working-directory: frontend
+        run: npm run typecheck
+      - name: Component tests
+        working-directory: frontend
+        run: npm test
+      - name: Backend and model tests
+        run: python -m pytest -q
+      - name: Build production frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Install Chromium and system dependencies
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser flows against real backend
+        working-directory: frontend
+        run: npm run test:e2e

@@ -1164,11 +1164,12 @@ function Simulation({
   selection: Selection;
   setSelection: (s: Selection) => void;
 }) {
-  const [channel, setChannel] = useState("call");
-  const [cost, setCost] = useState(800),
-    [success, setSuccess] = useState(0.25),
+  const initialChannel = meta.channels.find((ch) => ch.id === "call") ?? meta.channels[0];
+  const [channel, setChannel] = useState(initialChannel.id);
+  const [cost, setCost] = useState(initialChannel.cost),
+    [success, setSuccess] = useState(initialChannel.success),
     [maxK, setMaxK] = useState(3000),
-    [months, setMonths] = useState(18),
+    [months, setMonths] = useState(meta.clv_months),
     [budgetText, setBudgetText] = useState("");
   const budget = budgetText === "" ? null : Number(budgetText);
   const valid =
